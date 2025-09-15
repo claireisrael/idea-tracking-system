@@ -21,6 +21,7 @@ export default function Dashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateRange, setDateRange] = useState("all");
   const [stats, setStats] = useState({});
   const [editingIdea, setEditingIdea] = useState(null);
 
@@ -35,9 +36,9 @@ export default function Dashboard({ user, onLogout }) {
     const timeoutId = setTimeout(() => {
       filterIdeas();
     }, 300); // Debounce search by 300ms
-
+    //filter by date range, just added this feature and I am testing branch improve-filter
     return () => clearTimeout(timeoutId);
-  }, [ideas, searchTerm, statusFilter]);
+  }, [ideas, searchTerm, statusFilter, dateRange]);
 
   // Fetch all ideas from the database
   const loadIdeas = async () => {
@@ -83,6 +84,32 @@ export default function Dashboard({ user, onLogout }) {
       // If we have both search and status filter, apply status filter to search results
       if (searchTerm && statusFilter !== "all") {
         filtered = filtered.filter((idea) => idea.status === statusFilter);
+      }
+
+      // Apply date range filter
+      if (dateRange !== "all") {
+        const now = new Date();
+        const filterDate = new Date();
+
+        switch (dateRange) {
+          case "today":
+            filterDate.setHours(0, 0, 0, 0);
+            break;
+          case "week":
+            filterDate.setDate(now.getDate() - 7);
+            break;
+          case "month":
+            filterDate.setMonth(now.getMonth() - 1);
+            break;
+          case "year":
+            filterDate.setFullYear(now.getFullYear() - 1);
+            break;
+        }
+
+        filtered = filtered.filter((idea) => {
+          const ideaDate = new Date(idea.createdAt);
+          return ideaDate >= filterDate;
+        });
       }
 
       setFilteredIdeas(filtered);
@@ -157,6 +184,7 @@ export default function Dashboard({ user, onLogout }) {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    setDateRange("all");
   };
 
   // Get search results count
@@ -285,8 +313,22 @@ export default function Dashboard({ user, onLogout }) {
                 <option value="on-hold">On Hold</option>
               </select>
 
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Time</option>
+                <option value="today">📅 Today</option>
+                <option value="week">📅 This Week</option>
+                <option value="month">📅 This Month</option>
+                <option value="year">📅 This Year</option>
+              </select>
+
               {/* Clear filters button - only show when filters are active */}
-              {(searchTerm || statusFilter !== "all") && (
+              {(searchTerm ||
+                statusFilter !== "all" ||
+                dateRange !== "all") && (
                 <button
                   onClick={clearFilters}
                   className="inline-flex items-center px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all duration-200"
