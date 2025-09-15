@@ -14,7 +14,7 @@ import {
 } from "../lib/ideas";
 
 export default function Dashboard({ user, onLogout }) {
-  // TODO: Add idea categories feature - Work, Personal, Business
+  // Testing on how to version branch idea-categories by adding idea categories feature for Work, Personal and Business
   const [showForm, setShowForm] = useState(false);
   const [ideas, setIdeas] = useState([]);
   const [filteredIdeas, setFilteredIdeas] = useState([]);
