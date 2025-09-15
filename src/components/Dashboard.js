@@ -14,6 +14,7 @@ import {
 } from "../lib/ideas";
 
 export default function Dashboard({ user, onLogout }) {
+  // TODO: Add idea categories feature - Work, Personal, Business
   const [showForm, setShowForm] = useState(false);
   const [ideas, setIdeas] = useState([]);
   const [filteredIdeas, setFilteredIdeas] = useState([]);
@@ -200,7 +201,7 @@ export default function Dashboard({ user, onLogout }) {
               onClick={handleLogout}
               className="px-8 py-4 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
             >
-              <span className="mr-2">👋</span>
+              <span className="mr-2"></span>
               Logout
             </button>
           </div>
@@ -279,9 +280,9 @@ export default function Dashboard({ user, onLogout }) {
                 className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
-                <option value="in-progress">🚧 In Progress</option>
-                <option value="Completed">✅ Completed</option>
-                <option value="on-hold">⏸️ On Hold</option>
+                <option value="in-progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="on-hold">On Hold</option>
               </select>
 
               {/* Clear filters button - only show when filters are active */}
