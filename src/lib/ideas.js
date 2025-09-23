@@ -13,7 +13,7 @@ export const createIdea = async (ideaData, userId) => {
     });
 
     console.log("Creating document with data:", ideaData);
-
+    //appwrite function to create new record in databse(in this case an idea will be created in the databse)
     const idea = await databases.createDocument(
       DATABASE_ID,
       IDEAS_COLLECTION_ID,
@@ -23,7 +23,6 @@ export const createIdea = async (ideaData, userId) => {
         description: ideaData.description,
         status: ideaData.status,
         userId: userId,
-        createdAt: new Date().toISOString(),
         attachments: ideaData.attachments || "",
       },
       [
@@ -39,15 +38,20 @@ export const createIdea = async (ideaData, userId) => {
   }
 };
 
-// Fetch all ideas from the database
-export const getIdeas = async () => {
+// Fetch all ideas from the database for a specific user currently logedin 0r signed up
+export const getIdeas = async (userId) => {
   try {
+    if (!userId) {
+      throw new Error("User ID is required to fetch ideas");
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       IDEAS_COLLECTION_ID,
       [
+        Query.equal("userId", userId), // Only get ideas for this specific user
         Query.orderDesc("$createdAt"),
-        Query.limit(100), // Keeping it to 100 for now
+        Query.limit(100), // at least load 100 for now
       ]
     );
     return response.documents;
@@ -89,13 +93,21 @@ export const deleteIdea = async (ideaId) => {
   }
 };
 
-// Look for ideas by searching in titles
-export const searchIdeas = async (searchTerm) => {
+// Look for ideas by searching in titles for a specific user
+export const searchIdeas = async (searchTerm, userId) => {
   try {
+    if (!userId) {
+      throw new Error("User ID is required to search ideas");
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       IDEAS_COLLECTION_ID,
-      [Query.search("title", searchTerm), Query.orderDesc("$createdAt")]
+      [
+        Query.equal("userId", userId), // Only search within user's ideas
+        Query.search("Title", searchTerm), //using "Title" to match the field name in the database
+        Query.orderDesc("$createdAt"),
+      ]
     );
     return response.documents;
   } catch (error) {
@@ -119,13 +131,21 @@ export const getIdeasByCategory = async (category) => {
   }
 };
 
-// Get ideas filtered by status
-export const getIdeasByStatus = async (status) => {
+// Get ideas filtered by status for a specific user
+export const getIdeasByStatus = async (status, userId) => {
   try {
+    if (!userId) {
+      throw new Error("User ID is required to fetch ideas by status");
+    }
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       IDEAS_COLLECTION_ID,
-      [Query.equal("status", status), Query.orderDesc("$createdAt")]
+      [
+        Query.equal("userId", userId), // Only get ideas for this specific user
+        Query.equal("status", status),
+        Query.orderDesc("$createdAt"),
+      ]
     );
     return response.documents;
   } catch (error) {
@@ -134,10 +154,14 @@ export const getIdeasByStatus = async (status) => {
   }
 };
 
-// Calculate some basic stats for the dashboard
-export const getIdeasStats = async () => {
+// Calculate some basic stats for the dashboard for a specific user
+export const getIdeasStats = async (userId) => {
   try {
-    const allIdeas = await getIdeas();
+    if (!userId) {
+      throw new Error("User ID is required to get ideas stats");
+    }
+
+    const allIdeas = await getIdeas(userId); // Get only user's ideas
 
     const stats = {
       total: allIdeas.length,

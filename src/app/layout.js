@@ -1,4 +1,7 @@
+"use client";
+
 import "./globals.css";
+import { AuthProvider } from "../contexts/AuthContext";
 
 export default function RootLayout({ children }) {
   return (
@@ -21,7 +24,9 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#667eea" />
       </head>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

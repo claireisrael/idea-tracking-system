@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import IdeaForm from "./IdeaForm";
 import IdeaCard from "./IdeaCard";
+import { useAuth } from "../contexts/AuthContext";
 import {
   createIdea,
   getIdeas,
@@ -13,7 +15,9 @@ import {
   getIdeasStats,
 } from "../lib/ideas";
 
-export default function Dashboard({ user, onLogout }) {
+export default function Dashboard() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
   // Testing on how to version branch idea-categories by adding idea categories feature for Work, Personal and Business
   const [showForm, setShowForm] = useState(false);
   const [ideas, setIdeas] = useState([]);
@@ -25,10 +29,74 @@ export default function Dashboard({ user, onLogout }) {
   const [stats, setStats] = useState({});
   const [editingIdea, setEditingIdea] = useState(null);
 
+  // Local Storage Functions
+  const saveFilterPreferences = () => {
+    const preferences = {
+      statusFilter,
+      dateRange,
+      searchTerm,
+    };
+    localStorage.setItem("ideaTracker_filters", JSON.stringify(preferences));
+    console.log("💾 Filter preferences saved to local storage");
+  };
+
+  const loadFilterPreferences = () => {
+    try {
+      const saved = localStorage.getItem("ideaTracker_filters");
+      if (saved) {
+        const preferences = JSON.parse(saved);
+        setStatusFilter(preferences.statusFilter || "all");
+        setDateRange(preferences.dateRange || "all");
+        setSearchTerm(preferences.searchTerm || "");
+        console.log("📂 Filter preferences loaded from local storage");
+      }
+    } catch (error) {
+      console.error("Error loading preferences:", error);
+    }
+  };
+
+  // Ideas Caching Functions
+  const cacheIdeas = (ideas, userId) => {
+    try {
+      const cacheKey = `ideas_${userId}`;
+      const cacheData = {
+        ideas,
+        timestamp: Date.now(),
+        userId,
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      console.log("💾 Ideas cached for user:", userId);
+    } catch (error) {
+      console.error("Error caching ideas:", error);
+    }
+  };
+
+  const getCachedIdeas = (userId) => {
+    try {
+      const cacheKey = `ideas_${userId}`;
+      const cached = localStorage.getItem(cacheKey);
+
+      if (cached) {
+        const cacheData = JSON.parse(cached);
+        const isExpired = Date.now() - cacheData.timestamp > 5 * 60 * 1000; // 5 minutes
+
+        if (!isExpired && cacheData.userId === userId) {
+          console.log("📂 Ideas loaded from cache");
+          return cacheData.ideas;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting cached ideas:", error);
+      return null;
+    }
+  };
+
   // Get ideas when the component loads
   useEffect(() => {
     loadIdeas();
     loadStats();
+    loadFilterPreferences(); // Load saved preferences
   }, [user]);
 
   // Update the filtered list when ideas or filters change
@@ -40,12 +108,31 @@ export default function Dashboard({ user, onLogout }) {
     return () => clearTimeout(timeoutId);
   }, [ideas, searchTerm, statusFilter, dateRange]);
 
-  // Fetch all ideas from the database
+  // Save filter preferences whenever they change
+  useEffect(() => {
+    saveFilterPreferences();
+  }, [statusFilter, dateRange, searchTerm]);
+
+  // Fetch all ideas from the database for the current user
   const loadIdeas = async () => {
     try {
       setLoading(true);
-      const userIdeas = await getIdeas();
+
+      // Try to load from cache first
+      const cachedIdeas = getCachedIdeas(user.$id);
+      if (cachedIdeas) {
+        setIdeas(cachedIdeas);
+        setLoading(false);
+        console.log("📂 Loaded ideas from cache");
+      }
+
+      // Always fetch fresh data from server
+      const userIdeas = await getIdeas(user.$id);
       setIdeas(userIdeas);
+
+      // Cache the fresh data
+      cacheIdeas(userIdeas, user.$id);
+
       console.log("Loaded ideas:", userIdeas);
     } catch (error) {
       console.error("Error loading ideas:", error);
@@ -54,10 +141,10 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // Get dashboard statistics
+  // Get dashboard statistics for the current user
   const loadStats = async () => {
     try {
-      const statistics = await getIdeasStats();
+      const statistics = await getIdeasStats(user.$id);
       setStats(statistics);
       console.log("Loaded stats:", statistics);
     } catch (error) {
@@ -72,10 +159,10 @@ export default function Dashboard({ user, onLogout }) {
 
       // If we have a search term, use the searchIdeas function
       if (searchTerm) {
-        filtered = await searchIdeas(searchTerm);
+        filtered = await searchIdeas(searchTerm, user.$id);
       } else if (statusFilter !== "all") {
         // If we have a status filter, use getIdeasByStatus function
-        filtered = await getIdeasByStatus(statusFilter);
+        filtered = await getIdeasByStatus(statusFilter, user.$id);
       } else {
         // Otherwise, use all ideas
         filtered = ideas;
@@ -135,7 +222,12 @@ export default function Dashboard({ user, onLogout }) {
     try {
       setLoading(true);
       const newIdea = await createIdea(ideaData, user.$id);
-      setIdeas([newIdea, ...ideas]);
+      const updatedIdeas = [newIdea, ...ideas];
+      setIdeas(updatedIdeas);
+
+      // Update cache with new ideas
+      cacheIdeas(updatedIdeas, user.$id);
+
       setShowForm(false);
       loadStats(); // Refresh stats
       console.log("Idea created:", newIdea);
@@ -151,9 +243,14 @@ export default function Dashboard({ user, onLogout }) {
     try {
       setLoading(true);
       const updatedIdea = await updateIdea(editingIdea.$id, ideaData);
-      setIdeas(
-        ideas.map((idea) => (idea.$id === editingIdea.$id ? updatedIdea : idea))
+      const updatedIdeas = ideas.map((idea) =>
+        idea.$id === editingIdea.$id ? updatedIdea : idea
       );
+      setIdeas(updatedIdeas);
+
+      // Update cache with updated ideas
+      cacheIdeas(updatedIdeas, user.$id);
+
       setEditingIdea(null);
       setShowForm(false);
       loadStats(); // Refresh stats
@@ -170,7 +267,12 @@ export default function Dashboard({ user, onLogout }) {
     try {
       setLoading(true);
       await deleteIdea(ideaId);
-      setIdeas(ideas.filter((idea) => idea.$id !== ideaId));
+      const updatedIdeas = ideas.filter((idea) => idea.$id !== ideaId);
+      setIdeas(updatedIdeas);
+
+      // Update cache with updated ideas
+      cacheIdeas(updatedIdeas, user.$id);
+
       loadStats(); // Refresh stats
       console.log("Idea deleted:", ideaId);
     } catch (error) {
@@ -197,7 +299,7 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   const handleLogout = () => {
-    onLogout();
+    router.push("/logout");
   };
 
   return (
